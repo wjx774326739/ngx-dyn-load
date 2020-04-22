@@ -1,5 +1,4 @@
 import {
-    Compiler,
     ComponentFactoryResolver,
     Injector,
     NgModuleFactory,
@@ -9,34 +8,31 @@ import {
     ViewContainerRef
 } from '@angular/core';
 
-import { DynModuleModule } from '../dyn-module/dyn-module.module';
+import { DynLoaderService } from '../dyn-loader.service';
 
 export class BaseFeatureModule {
 
   @ViewChild('dynModule', { read: ViewContainerRef, static: true }) dynModule: ViewContainerRef;
   @ViewChild('dynModuleCom', { read: ViewContainerRef, static: true }) dynModuleCom: ViewContainerRef;
 
-  protected dynModuleModuleRef: NgModuleRef<DynModuleModule>;
+  protected dynModuleModuleRef: NgModuleRef<any>;
 
   protected caller: string;
 
   constructor(
     protected cfr: ComponentFactoryResolver,
-    protected compiler: Compiler,
     protected injector: Injector,
+    protected dynLoader: DynLoaderService,
   ) { }
 
   private async dynLoadTheModule(): Promise<void> {
-    return import('./../dyn-module/dyn-module.module').then(m => {
-      return this.loadModuleFactory(m.DynModuleModule).then(moduleFactory => {
-        const moduleRef = moduleFactory.create(this.injector);
-        this.dynModuleModuleRef = moduleRef;
-        this.dynLoadTheModuleCom(moduleRef);
-      });
-    });
+    const moduleFactory = await this.dynLoader.getModuleFactory('dyn-module');
+    const moduleRef = moduleFactory.create(this.injector);
+    this.dynModuleModuleRef = moduleRef;
+    this.dynLoadTheModuleCom(moduleRef);
   }
 
-  private dynLoadTheModuleCom(moduleRef: NgModuleRef<DynModuleModule>, isCom1: boolean = true): void {
+  private dynLoadTheModuleCom(moduleRef: NgModuleRef<any>, isCom1: boolean = true): void {
     // 这边必须用moduleRef.componentFactoryResolver加载组件，
     // 如果用this.cfr会报DI错误
     import('./../dyn-module/index').then(comIndex => {
@@ -45,14 +41,6 @@ export class BaseFeatureModule {
       const comRef = this.dynModule.createComponent(moduleRef.componentFactoryResolver.resolveComponentFactory(component));
       comRef.instance.caller = this.caller;
     });
-  }
-
-  private loadModuleFactory(module: any): Promise<NgModuleFactory<any>> {
-    if (module instanceof NgModuleFactory) {
-      return new Promise(resolve => resolve(module));
-    } else {
-      return this.compiler.compileModuleAsync(module);
-    }
   }
 
   onDynLoadModule(): void {
